@@ -1,3 +1,7 @@
+import { useState, useRef, useEffect } from "react";
+import { treaty } from "@elysiajs/eden";
+import { EdenWS } from "@elysiajs/eden/treaty";
+import type { ApiApp } from "../index";
 import {
   Cell,
   GameState,
@@ -5,23 +9,57 @@ import {
   initialBoardState,
   initialGameState,
 } from "../game-logic/tictactoe";
-import { useState } from "react";
 import "./App.css";
 
+const api = treaty<ApiApp>("localhost:3000");
+
+type MyWS = EdenWS<{
+  body: { position: number, size: number };
+  params: {};
+  query: { gameId: string };
+  headers: unknown;
+  response: unknown;
+}>;
+
 function App() {
-  const [gameState, setGameState] = useState(initialGameState);
+  const [gameState, setGameState] = useState<GameState>(initialGameState);
+  const gameServerRef = useRef<MyWS | null>(null);
+
+  useEffect(() => {
+    const gameServer = api.game.subscribe({ query: { gameId: "2" } });
+    gameServerRef.current = gameServer;
+
+    gameServer.subscribe((message) => {
+      console.log("setGame to:", message);
+      if (message.data.error === "Not your turn") {
+        alert("Not your turn");
+      } else {
+        if (message.data.game) {
+          setGameState(message.data.game);
+        }
+      }
+    });
+
+    return () => {
+      gameServer.close();
+      gameServerRef.current = null;
+    };
+  }, []);
 
   function startTheGame(size: number) {
-    setGameState({
-      ...gameState,
-      Board: initialBoardState(size),
-      Size: size,
-      Start: true,
-    });
+    gameServerRef.current?.send({ position: null, size: size});
+    // setGameState({
+    //   ...gameState,
+    //   Board: initialBoardState(size),
+    //   Size: size,
+    //   Start: true,
+    // });
   }
 
   function handleClick(index: number, gameState: GameState) {
-    setGameState(move(index, gameState));
+    console.log("gameState:", gameState);
+    gameServerRef.current?.send({ position: index, size: gameState.Board.length });
+    // setGameState(move(index, gameState));
   }
 
   function resetGame() {
@@ -37,32 +75,46 @@ function App() {
         <div className="text-[25px] font-bold text-center bg-gray-100 shadow-md">
           Grid Size: {gameState.Size}
           {!gameState.Start && (
-            <div className="flex">
-              <button
-                className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
-                onClick={() =>
-                  setGameState({ ...gameState, Size: gameState.Size + 1 })
-                }
-              >
-                Increment Grid Size
-              </button>
-              <button
-                className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
-                onClick={() => {
-                  if (gameState.Size > 0) {
-                  setGameState({ ...gameState, Size: gameState.Size - 1 })
+            <div>
+              <div className="flex justify-center">
+                <button
+                  className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
+                  onClick={() =>
+                    setGameState({ ...gameState, Size: gameState.Size + 1 })
                   }
-                }
-              }
-              >
-                Decrement Grid Size
-              </button>
-              <button
-                className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
-                onClick={() => startTheGame(gameState.Size)}
-              >
-                Start the Game
-              </button>
+                >
+                  Increment Grid Size
+                </button>
+                <button
+                  className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
+                  onClick={() => {
+                    if (gameState.Size > 0) {
+                      setGameState({ ...gameState, Size: gameState.Size - 1 });
+                    }
+                  }}
+                >
+                  Decrement Grid Size
+                </button>
+              </div>
+              <div className="flex justify-center">
+                <button className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer">
+                  Play Against Myself
+                </button>
+                <button className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer">
+                  Play Against AI
+                </button>
+                <button className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer">
+                  Play Against My Friend
+                </button>
+              </div>
+              <div className="flex justify-center">
+                <button
+                  className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
+                  onClick={() => startTheGame(gameState.Size)}
+                >
+                  Start the Game
+                </button>
+              </div>
             </div>
           )}
         </div>
