@@ -1,30 +1,62 @@
 export type Player = "x" | "o";
 export type Cell = Player | "";
-export type Board = [Cell, Cell, Cell, Cell, Cell, Cell, Cell, Cell, Cell];
-export type Wins = [
-  [0, 1, 2],
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6],
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8],
-  [2, 4, 6],
-];
+export type Board = Cell[];
+export type Wins = number[][];
 
-export const Wins: Wins = [
-  [0, 1, 2],
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6],
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8],
-  [2, 4, 6],
-];
+export type GameState = {
+  Player: Player;
+  Board: Board;
+  Size: number;
+  Interruption: boolean;
+  Start: boolean;
+  InterruptionMessage: string;
+};
 
-export const initialGameState = ["", "", "", "", "", "", "", "", ""] as Board;
-export const initialPlayer = "x" as Player;
+export const initialGameState = {
+  Player: "x" as Player,
+  Board: [""] as Board,
+  Size: 0,
+  Start: false,
+  Interruption: false,
+  InterruptionMessage: "",
+} as GameState;
+
+export function calculateWins(size: number): Wins {
+  const horizontalWins: Wins = [];
+  for (let i = 0; i < size; i++) {
+    horizontalWins[i] = [];
+    for (let j = 0; j < size; j++) {
+      horizontalWins[i][j] = i * size + j;
+    }
+  }
+  const verticalWins: Wins = [];
+  for (let k = 0; k < size; k++) {
+    verticalWins[k] = [];
+    for (let l = 0; l < size; l++) {
+      verticalWins[k][l] = k + size * l;
+    }
+  }
+  const diagonalWins: Wins = [[], []];
+  for (let m = 0; m < size; m++) {
+    diagonalWins[0][m] = m + size * m;
+    diagonalWins[1][m] = size - 1 + (size - 1) * m;
+  }
+  const Wins: Wins = [...horizontalWins, ...verticalWins, ...diagonalWins];
+  return Wins;
+}
+
+export function initialBoardState(size: number): Board {
+  return new Array(size * size).fill("") as Board;
+}
+
+export function startNewGame(size: number): GameState {
+  return {
+    ...initialGameState,
+    Board: initialBoardState(size),
+    Size: size,
+    Start: true,
+  };
+}
 
 export function changePlayer(player: Player): Player {
   if (player === "x") {
@@ -33,14 +65,18 @@ export function changePlayer(player: Player): Player {
   return "x";
 }
 
-export function checkWin(board: Board, player: Player): Player | undefined {
-  for (let i = 0; i < Wins.length; i++) {
+export function checkWin(
+  board: Board,
+  player: Player,
+  wins: Wins,
+): Player | undefined {
+  for (let i = 0; i < wins.length; i++) {
     let winCon: number = 0;
-    for (let j = 0; j < Wins[i].length; j++) {
-      if (board[Wins[i][j]] === player) {
+    for (let j = 0; j < wins[i].length; j++) {
+      if (board[wins[i][j]] === player) {
         winCon++;
       }
-      if (winCon === 3) {
+      if (winCon === wins[i].length) {
         return player;
       }
     }
@@ -48,35 +84,64 @@ export function checkWin(board: Board, player: Player): Player | undefined {
   return undefined;
 }
 
-export function move(
-  position: number,
-  prevGame: Board,
-  player: Player,
-): { newGame: Board; newPlayer: Player } | string {
-  const newGame: Board = [...prevGame];
+export function computerMove(prevGame: GameState): GameState {
+  const indexes: number[] = [];
+  for (let i = 0; i < prevGame.Board.length; i++) {
+    if (prevGame.Board[i] === "") {
+      indexes.push(i);
+    }
+  }
+  const randomIndex = indexes[Math.floor(Math.random() * indexes.length)];
+  const newState = move(randomIndex, prevGame);
+  return newState;
+}
+
+export function move(position: number, prevGame: GameState): GameState {
+  const newGame: GameState = { ...prevGame, Board: [...prevGame.Board] };
+
+  // check how it is possible to win
+  const wins: Wins = calculateWins(newGame.Size);
 
   // check if the move is valid at all
-  if (prevGame[position] !== "") {
-    return "You done messed up, A-A-Ron!";
+  if (prevGame.Board[position] !== "") {
+    return {
+      ...newGame,
+      Interruption: true,
+      InterruptionMessage: "You done messed up, A-A-Ron!",
+    };
   }
 
   // update the board state
   else {
-    newGame[position] = player;
+    newGame.Board[position] = prevGame.Player;
   }
 
   // check if anybody has won
-  const winOutcome: Player | undefined = checkWin(newGame, player);
+  const winOutcome: Player | undefined = checkWin(
+    newGame.Board,
+    prevGame.Player,
+    wins,
+  );
   if (winOutcome !== undefined) {
-    return `${winOutcome} has won the game!`;
+    return {
+      ...newGame,
+      Interruption: true,
+      InterruptionMessage: `${winOutcome} has won the game!`,
+    };
   }
 
   // check if the game is a tie
-  if (!newGame.includes("")) {
-    return "Tie game. Try being dumber next time.";
+  if (!newGame.Board.includes("")) {
+    return {
+      ...newGame,
+      Interruption: true,
+      InterruptionMessage: "Tie game. Try being dumber next time.",
+    };
   }
 
   // otherwise, go to the next move
-  const newPlayer: Player = changePlayer(player);
-  return { newGame: newGame, newPlayer: newPlayer };
+  const newPlayer: Player = changePlayer(prevGame.Player);
+  return { ...newGame, Player: newPlayer } as GameState;
 }
+
+// function resetGame()

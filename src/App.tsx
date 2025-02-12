@@ -1,59 +1,155 @@
-import {
-  initialGameState,
-  initialPlayer,
-  Board,
-  Player,
-  Cell,
-  move,
-} from "../game-logic/tictactoe";
-import { useState } from "react";
+import { Cell, GameState, initialGameState } from "../game-logic/tictactoe";
+import { ConnectionId } from "../game-logic/lobbies";
+import { useState, useEffect } from "react";
+import { io, Socket } from "socket.io-client";
+import { v4 as uuidv4 } from "uuid";
 import "./App.css";
 
-function App() {
-  const [gameInterrupted, setGameInterrupted] = useState([false, ""]);
-  const [gameState, setGameState] = useState(initialGameState);
-  const [player, setPlayer] = useState(initialPlayer);
+const socket: Socket = io("http://localhost:3001");
 
-  function handleClick(index: number, gameState: Board, player: Player) {
-    const moveOutcome: string | { newGame: Board; newPlayer: Player } = move(
-      index,
-      gameState,
-      player,
-    );
-    if (typeof moveOutcome === "string") {
-      return setGameInterrupted([true, moveOutcome]);
-    } else {
-      setGameState(moveOutcome.newGame);
-      setPlayer(moveOutcome.newPlayer);
-    }
+const clientId: ConnectionId = uuidv4();
+
+function App() {
+  const [gameState, setGameState] = useState<GameState>(initialGameState);
+
+  useEffect(() => {
+    socket.on("gameUpdate", (gameState) => {
+      setGameState(gameState);
+    });
+
+    return () => {
+      socket.off("gameUpdate");
+    };
+  }, []);
+
+  function startNewGame(size: number, connectionId: ConnectionId) {
+    socket.emit("startGame", size, connectionId);
+  }
+
+  function joinExistingGame(size: number, connectionId: ConnectionId) {
+    socket.emit("joinGame", size, connectionId);
+  }
+
+  function playSelf(size: number, connectionId: ConnectionId) {
+    socket.emit("playSelf", size, connectionId);
+  }
+
+  function playComputer(size: number, connectionId: ConnectionId) {
+    socket.emit("playComputer", size, connectionId);
+  }
+
+  function handleClick(index: number, connectionId: ConnectionId) {
+    socket.emit("playerMove", index, connectionId);
   }
 
   function resetGame() {
-    setGameInterrupted([false, ""]);
-    setGameState(initialGameState);
-    setPlayer(initialPlayer);
+    socket.emit("resetGame");
   }
 
-  return gameInterrupted[0] ? (
+  return (
     <>
-      <div>{gameInterrupted[1]}</div>
-      <div className="flex text-sm">
-        <button onClick={() => resetGame()}>Play Again</button>
-        <button>Brag About It</button>
+      <div className="min-h-screen flex flex-col items-center">
+        <div className="text-[50px] font-bold text-center bg-gray-100 shadow-md">
+          Tic-Tac-Toe Game
+        </div>
+        <div className="text-[25px] font-bold text-center bg-gray-100 shadow-md">
+          Grid Size: {gameState.Size}
+          {!gameState.Start && (
+            <div>
+              <div className="flex justify-center">
+                <button
+                  className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
+                  onClick={() =>
+                    setGameState({ ...gameState, Size: gameState.Size + 1 })
+                  }
+                >
+                  Increment Grid Size
+                </button>
+                <button
+                  className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
+                  onClick={() => {
+                    if (gameState.Size > 0) {
+                      setGameState({ ...gameState, Size: gameState.Size - 1 });
+                    }
+                  }}
+                >
+                  Decrement Grid Size
+                </button>
+              </div>
+              <div className="flex justify-center">
+                <button
+                  className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
+                  onClick={() => startNewGame(gameState.Size, clientId)}
+                >
+                  Create New Game (against Human!)
+                </button>
+                <button
+                  className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
+                  onClick={() => joinExistingGame(gameState.Size, clientId)}
+                >
+                  Join Existing Game (against Human!)
+                </button>
+              </div>
+              <div className="flex justify-center">
+                <button
+                  className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
+                  onClick={() => playSelf(gameState.Size, clientId)}
+                >
+                  Play Against Yourself
+                </button>
+                <button
+                  className="bg-blue-500 hover:bg-blue-700 text-[15px] text-white font-bold flex items-center justify-center rounded cursor-pointer"
+                  onClick={() => playComputer(gameState.Size, clientId)}
+                >
+                  Play Against Computer
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        {gameState.Start && (
+          <div className="flex-1 flex justify-center items-center mt-[60px]">
+            {gameState.Interruption ? (
+              <>
+                <div className="text-center">
+                  <div className="text-[50px] mb-4">
+                    {gameState.InterruptionMessage}
+                  </div>
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      className="bg-blue-500 text-white px-4 py-2 rounded"
+                      onClick={() => resetGame()}
+                    >
+                      Play Again
+                    </button>
+                    <button className="bg-blue-500 text-white px-4 py-2 rounded">
+                      Brag About It
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div
+                className={`grid gap-2 w-[300px]`}
+                style={{
+                  gridTemplateColumns: `repeat(${gameState.Size}, minmax(0, 1fr))`,
+                }}
+              >
+                {gameState.Board.map((cell: Cell, index: number) => (
+                  <button
+                    key={index}
+                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold flex items-center justify-center aspect-square text-2xl rounded cursor-pointer px-4 py-4"
+                    onClick={() => handleClick(index, clientId)}
+                  >
+                    {cell}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </>
-  ) : (
-    <div className="grid grid-cols-3 gap-2 w-[300px]">
-      {gameState.map((cell: Cell, index: number) => (
-        <button
-          key={index}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold flex items-center justify-center aspect-square text-2xl rounded cursor-pointer px-4 py-4"
-          onClick={() => handleClick(index, gameState, player)}
-        >
-          {cell}
-        </button>
-      ))}
-    </div>
   );
 }
 
