@@ -9,16 +9,15 @@ import {
   startNewGame,
   computerMove,
   closeInterruption,
-  createInterruption,
 } from "./game-logic/tictactoe";
 import {
   ConnectionId,
   initialLobbyState,
-  isCurrentPlayer,
   createNewLobby,
   joinExistingLobby,
   createLonesomeLobby,
   createComputerLobby,
+  isCurrentPlayer,
 } from "./game-logic/lobbies";
 
 const FRONTEND_URL =
@@ -48,38 +47,41 @@ const io = new Server(httpServer, {
 
 io.on("connection", (socket) => {
   socket.on("playerMove", (position: number, connectionId: ConnectionId) => {
-    if (isCurrentPlayer(connectionId, lobby) && connectionId !== "computer") {
+    if (isCurrentPlayer(connectionId, lobby)) {
       lobby.gameState = move(position, lobby.gameState);
       io.emit("gameUpdate", lobby.gameState);
-    } else if (position === -1 && lobby.gameState.Player !== "x") {
-      lobby.gameState = computerMove(lobby.gameState);
-      io.emit("gameUpdate", lobby.gameState);
-    } else {
-      lobby.gameState = createInterruption(
-        "It is not your turn, ".concat(lobby.gameState.Player),
-        lobby.gameState,
-      );
-      io.emit("gameUpdate", lobby.gameState);
+      if (lobby.gameState.Mode === "computer") {
+        lobby.gameState = computerMove(lobby.gameState);
+        io.emit("gameUpdate", lobby.gameState);
+      }
     }
+
+    return {
+      ...lobby.gameState,
+      InterruptionMessage: "It is not your turn, ".concat(
+        lobby.gameState.Player,
+      ),
+    };
+    // if it is your turn, and you are a player, go ahead and move:
   });
 
   socket.on("startGame", (size: number, connectionId: ConnectionId) => {
     lobby.lobbyId = uuidv4();
-    lobby.gameState = startNewGame(size, false);
+    lobby.gameState = startNewGame(size, "multiplayer");
     lobby = createNewLobby(connectionId, lobby);
     io.emit("gameUpdate", lobby.gameState);
   });
 
   socket.on("playSelf", (size: number, connectionId: ConnectionId) => {
     lobby.lobbyId = uuidv4();
-    lobby.gameState = startNewGame(size, false);
+    lobby.gameState = startNewGame(size, "solo");
     lobby = createLonesomeLobby(connectionId, lobby);
     io.emit("gameUpdate", lobby.gameState);
   });
 
   socket.on("playComputer", (size: number, connectionId: ConnectionId) => {
     lobby.lobbyId = uuidv4();
-    lobby.gameState = startNewGame(size, true);
+    lobby.gameState = startNewGame(size, "computer");
     lobby = createComputerLobby(connectionId, lobby);
     io.emit("gameUpdate", lobby.gameState);
   });

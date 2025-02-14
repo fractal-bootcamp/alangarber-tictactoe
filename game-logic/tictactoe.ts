@@ -2,15 +2,17 @@ export type Player = "x" | "o";
 export type Cell = Player | "";
 export type Board = Cell[];
 export type Wins = number[][];
+export type Mode = "computer" | "solo" | "multiplayer";
 
 export type GameState = {
   Player: Player;
   Board: Board;
   Size: number;
-  Interruption: boolean;
   Start: boolean;
+  Result: "x" | "o" | "tie" | "unfinished";
   InterruptionMessage: string;
-  ComputerOpponent: boolean;
+  computerMove: boolean;
+  Mode: Mode;
 };
 
 export const initialGameState = {
@@ -18,7 +20,9 @@ export const initialGameState = {
   Board: [""] as Board,
   Size: 0,
   Start: false,
-  Interruption: false,
+  Result: "unfinished",
+  Mode: "solo",
+  computerMove: false,
   InterruptionMessage: "",
   ComputerOpponent: false,
 } as GameState;
@@ -51,13 +55,13 @@ export function initialBoardState(size: number): Board {
   return new Array(size * size).fill("") as Board;
 }
 
-export function startNewGame(size: number, computer: boolean): GameState {
+export function startNewGame(size: number, mode: Mode): GameState {
   return {
     ...initialGameState,
     Board: initialBoardState(size),
     Size: size,
     Start: true,
-    ComputerOpponent: computer,
+    Mode: mode,
   };
 }
 
@@ -93,8 +97,6 @@ export function createInterruption(
 ): GameState {
   const newGame: GameState = {
     ...prevGame,
-    Board: [...prevGame.Board],
-    Interruption: true,
     InterruptionMessage: interruption,
   };
 
@@ -105,7 +107,6 @@ export function closeInterruption(prevGame: GameState): GameState {
   const newGame: GameState = {
     ...prevGame,
     Board: [...prevGame.Board],
-    Interruption: false,
     InterruptionMessage: "",
   };
 
@@ -134,7 +135,6 @@ export function move(position: number, prevGame: GameState): GameState {
   if (prevGame.Board[position] !== "") {
     return {
       ...newGame,
-      Interruption: true,
       InterruptionMessage: "You done messed up, A-A-Ron!",
     };
   }
@@ -153,7 +153,6 @@ export function move(position: number, prevGame: GameState): GameState {
   if (winOutcome !== undefined) {
     return {
       ...newGame,
-      Interruption: true,
       InterruptionMessage: `${winOutcome} has won the game!`,
     };
   }
@@ -162,7 +161,7 @@ export function move(position: number, prevGame: GameState): GameState {
   if (!newGame.Board.includes("")) {
     return {
       ...newGame,
-      Interruption: true,
+
       InterruptionMessage: "Tie game. Try being dumber next time.",
     };
   }

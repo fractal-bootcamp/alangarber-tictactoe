@@ -6,6 +6,8 @@ import { io, Socket } from "socket.io-client";
 import { v4 as uuidv4 } from "uuid";
 import "./App.css";
 
+// bug watch: you need to fix how this thing looks for times when someone plays an incorrect move. Right now, this does not work in computer games
+
 const BACKEND_URL =
   import.meta.env.MODE === "development"
     ? "http://localhost:3001"
@@ -21,31 +23,34 @@ const clientId: ConnectionId = uuidv4();
 function App() {
   const [gameState, setGameState] = useState<GameState>(initialGameState);
 
-  const notify = (text: string) => toast(text, {
-    autoClose: 3000,
-  });
+  const notify = (text: string) =>
+    toast(text, {
+      autoClose: 3000,
+    });
 
   useEffect(() => {
-    socket.on("gameUpdate", (gameState: GameState) => {
-      setGameState(gameState);
+    socket.on("gameUpdate", (nextGameState: GameState) => {
+      // if mode === computer and currentPlayer === me
+      // THEN: add a delay to this setGameStateCall.
 
-      if (
-        gameState.Interruption &&
-        !gameState.InterruptionMessage.includes("has won the game!")
-      ) {
-        notify(gameState.InterruptionMessage);
-        closeInterruption(clientId);
+      // in a computer game I am always X so this works
+      if (nextGameState.computerMove) {
+        toast("computer is thinking", { autoClose: 300 });
+        setTimeout(() => setGameState(nextGameState), 800);
+      } else {
+        setGameState(nextGameState);
       }
 
-      if (gameState.ComputerOpponent && gameState.Player === "o") {
-        socket.emit("playerMove", -1, "computer");
+      if (nextGameState.InterruptionMessage.includes("has won the game!")) {
+        notify(nextGameState.InterruptionMessage);
+        closeInterruption(clientId);
       }
     });
 
     return () => {
       socket.off("gameUpdate");
     };
-  }, []);
+  }, [gameState.Board]);
 
   function startNewGame(size: number, connectionId: ConnectionId) {
     socket.emit("startGame", size, connectionId);

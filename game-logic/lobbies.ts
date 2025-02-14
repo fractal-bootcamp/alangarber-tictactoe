@@ -1,9 +1,4 @@
-import {
-  GameState,
-  initialGameState,
-  Player,
-  createInterruption,
-} from "./tictactoe";
+import { GameState, initialGameState, Player } from "./tictactoe";
 
 export type ConnectionId = string;
 
@@ -22,6 +17,17 @@ export const initialLobbyState = {
 } as Lobby;
 
 export const lobbies: Lobbies = [];
+
+// easteregg on spectator, because spectators should be able to exist, it's nice.
+export function whoAmI(
+  connectionId: ConnectionId,
+  lobby: Lobby,
+): Player | undefined {
+  if (lobby.players.get("x") === connectionId) return "x";
+  if (lobby.players.get("o") === connectionId) return "o";
+
+  return undefined;
+}
 
 export function isCurrentPlayer(
   connectionId: ConnectionId,
@@ -68,6 +74,10 @@ export function createComputerLobby(
 ): Lobby {
   const newLobby: Lobby = {
     ...lobbyState,
+    gameState: {
+      ...lobbyState.gameState,
+      Mode: "computer",
+    },
     players: new Map(lobbyState.players),
   };
 
@@ -81,10 +91,10 @@ export function joinExistingLobby(size: number, connectionId: string): Lobby {
   if (searchLobbies(size) === -1) {
     const errorMessageLobby: Lobby = {
       ...initialLobbyState,
-      gameState: createInterruption(
-        "No human is waiting for a game like this ☹️",
-        initialLobbyState.gameState,
-      ),
+      gameState: {
+        ...initialLobbyState.gameState,
+        InterruptionMessage: "No human is waiting for a game like this ☹️",
+      },
     };
     return errorMessageLobby;
   } else {
